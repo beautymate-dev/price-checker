@@ -1,0 +1,75 @@
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  color: #1a1a1a;
+}
+
+#search-form {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+#search-term {
+  flex: 1;
+  padding: 0.5rem;
+  font-size: 1rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+#status {
+  color: #666;
+  min-height: 1.2em;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.item .name {
+  font-weight: 600;
+}
+
+.item .meta {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.item .price {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.item .price .was {
+  text-decoration: line-through;
+  color: #999;
+  font-size: 0.85rem;
+  margin-right: 0.4rem;
+}
+
+.item .price .now {
+  font-weight: 700;
+  color: #0a7d32;
+}
+
+.site-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: #eee;
+  margin-right: 0.4rem;
+}
