@@ -1,10 +1,7 @@
 /**
  * Debug helper: dumps raw JSON from the Foodstuffs endpoints this project
  * relies on, so you can confirm/correct the field-mapping guesses in
- * src/adapters/foodstuffs.ts.
- *
- * MUST be run somewhere with normal internet access — this sandbox's
- * network policy blocks outbound requests to these domains (see README).
+ * src/adapters/foodstuffs.ts if the API changes shape.
  *
  * Usage:
  *   npm run probe -- <newworld|paknsave> stores
@@ -24,8 +21,15 @@ async function main() {
   const baseUrl = `https://www.${site}.co.nz`;
   const apiProdUrl = `https://api-prod.${site}.co.nz`;
 
+  const tokenRes = await sessionFetch(`${baseUrl}/api/user/get-current-user`, { method: "POST" });
+  if (!tokenRes.ok) {
+    console.error(`Failed to get access token: HTTP ${tokenRes.status}`);
+    process.exit(1);
+  }
+  const { access_token: token } = (await tokenRes.json()) as { access_token: string };
+
   if (mode === "stores") {
-    const res = await sessionFetch(`${baseUrl}/CommonApi/Store/GetStoreList`);
+    const res = await sessionFetch(`${apiProdUrl}/v1/edge/store`, { headers: { Authorization: `Bearer ${token}` } });
     console.log(`HTTP ${res.status}`);
     console.log(await res.text());
     return;
@@ -39,18 +43,11 @@ async function main() {
       process.exit(1);
     }
 
-    const changeRes = await sessionFetch(
-      `${baseUrl}/CommonApi/Store/ChangeStore?storeId=${encodeURIComponent(storeId)}&clickSource=list`,
-      { method: "POST" },
-    );
-    console.log(`ChangeStore HTTP ${changeRes.status}`);
-
-    const url = new URL(`${apiProdUrl}/v1/edge/search/paginated/products`);
-    url.searchParams.set("target", term);
-    url.searchParams.set("storeId", storeId);
-    url.searchParams.set("page", "1");
-
-    const res = await sessionFetch(url.toString());
+    const res = await sessionFetch(`${apiProdUrl}/v1/edge/search/paginated/products`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ page: 1, hitsPerPage: 50, sortOrder: "PRICE_ASC", storeId, algoliaQuery: { query: term } }),
+    });
     console.log(`Search HTTP ${res.status}`);
     console.log(await res.text());
     return;
