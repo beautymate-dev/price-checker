@@ -1,17 +1,19 @@
 /**
- * Usage: npm run find-store -- <newworld|paknsave> <suburb or store name>
+ * Usage: npm run find-store -- <newworld|paknsave|woolworths> <suburb or store name>
  *
  * Prints matching stores with their IDs so you can populate .env
- * (NEWWORLD_STORE_ID / PAKNSAVE_STORE_ID).
+ * (NEWWORLD_STORE_ID / PAKNSAVE_STORE_ID / WOOLWORTHS_STORE_ID).
  */
 import { createFoodstuffsAdapter } from "../src/adapters/foodstuffs.js";
+import { createWoolworthsAdapter } from "../src/adapters/woolworths.js";
+import type { SiteAdapter } from "../src/adapters/types.js";
 
 async function main() {
   const [site, ...queryParts] = process.argv.slice(2);
   const query = queryParts.join(" ");
 
-  if (site !== "newworld" && site !== "paknsave") {
-    console.error('First argument must be "newworld" or "paknsave" (Woolworths not supported yet).');
+  if (site !== "newworld" && site !== "paknsave" && site !== "woolworths") {
+    console.error('First argument must be "newworld", "paknsave", or "woolworths".');
     process.exit(1);
   }
   if (!query) {
@@ -20,7 +22,8 @@ async function main() {
     process.exit(1);
   }
 
-  const adapter = createFoodstuffsAdapter(site, undefined);
+  const adapter: SiteAdapter =
+    site === "woolworths" ? createWoolworthsAdapter(undefined) : createFoodstuffsAdapter(site, undefined);
   const stores = await adapter.findStores(query);
 
   if (stores.length === 0) {

@@ -1,18 +1,17 @@
 # price-checker
 
-Searches New World, Pak'nSave, and (eventually) Woolworths NZ for a given
-term and shows only items currently on special, for a store you configure
-per site.
+Searches New World, Pak'nSave, and Woolworths NZ for a given term and shows
+only items currently on special, for a store you configure per site.
 
 ## Status
 
-- **New World / Pak'nSave**: working, verified against live traffic. Both
-  sites run on the same Foodstuffs "edge" backend
+All three sites are working, verified against live traffic.
+
+- **New World / Pak'nSave**: both run on the same Foodstuffs "edge" backend
   (`api-prod.<site>.co.nz`, Apigee-fronted) — see "How the Foodstuffs
   integration works" below.
-- **Woolworths NZ**: not implemented yet (`src/adapters/woolworths.ts` is a
-  stub). Likely needs a headless-browser approach rather than plain HTTP
-  requests — see "Next steps".
+- **Woolworths NZ**: turned out not to need a headless browser after all —
+  see "How the Woolworths integration works" below.
 
 ## How the Foodstuffs integration works
 
@@ -56,6 +55,35 @@ per-unit price — this was inferred from the field naming, not observed in a
 live response, since no multi-buy deal happened to be live during
 verification. Worth a second look if multi-buy pricing ever looks off.
 
+## How the Woolworths integration works
+
+Turned out to be simpler than Foodstuffs, and simpler than the original
+stub's "probably needs Playwright" worry. It's a stateless REST API on the
+same origin as the website — no auth token, no cookies, no session:
+
+1. **One required header** — every `/api/v1/...` call needs
+   `X-Requested-With: XMLHttpRequest`, or it 400s with `"Header is missing or
+   is invalid"`. That's the only gate; a plain `curl` with just that header
+   and a normal User-Agent works.
+2. **Store list** — `GET /api/v1/addresses/pickup-addresses` returns
+   `{ storeAreas: [{ name, storeAddresses: [{ id, name, address }] }] }`,
+   grouped by region. The `"All Pick up locations"` area has every store
+   nationwide.
+3. **Product search** — `GET /api/v1/products?target=search&search=<term>&inStockProductsOnly=false&size=48`
+   returns `{ products: { items: [...] } }`. Each item has `price.isSpecial`
+   as a direct boolean (no promotions-array heuristics needed like
+   Foodstuffs) plus `price.originalPrice`/`salePrice`/`savePrice` already in
+   dollars, and unlike Foodstuffs, real image URLs and enough info
+   (`sku`/`slug`) to build a working product page link.
+
+The one real surprise: **the configured store doesn't change what comes
+back.** Unlike Foodstuffs (independently-owned stores, genuinely different
+specials per store), Woolworths pricing/specials from this endpoint are the
+same nationwide — there's no store or region filter parameter on the search
+endpoint. `WOOLWORTHS_STORE_ID` is still required (kept consistent with the
+other two adapters) and used to resolve a display name for each result's
+`storeName`, but it's cosmetic here, not a real per-store filter.
+
 ## Setup
 
 ```bash
@@ -63,6 +91,7 @@ npm install
 cp .env.example .env
 npm run find-store -- newworld "Your Suburb"   # then copy the ID into .env
 npm run find-store -- paknsave "Your Suburb"
+npm run find-store -- woolworths "Your Suburb"
 npm run dev
 ```
 
@@ -77,31 +106,30 @@ your configured stores.
   selection is stateless (a `storeId` UUID passed per request, looked up via
   `npm run find-store`); the adapter caches a short-lived bearer token per
   instance instead.
-- `src/adapters/woolworths.ts` — stub for phase 2.
+- `src/adapters/woolworths.ts` — Woolworths NZ adapter. Fully stateless
+  (no token, no cookies) — just one required header per request.
 - `src/search.ts` — fans a search term out to every configured adapter in
   parallel; one site failing doesn't block the others (`Promise.allSettled`).
 - `src/server.ts` — Express server: static frontend + `GET /api/search?term=`.
 - `public/` — minimal vanilla JS/HTML/CSS frontend.
 - `scripts/find-store.ts` — CLI to resolve a suburb/store name to a store ID.
-- `scripts/probe.ts` — CLI to dump raw API responses for verifying/fixing
-  the field-mapping guesses above.
+- `scripts/probe.ts` — CLI to dump raw Foodstuffs API responses for
+  verifying/fixing the field-mapping guesses above.
 
 Store IDs are configured once via `.env` (`NEWWORLD_STORE_ID`,
-`PAKNSAVE_STORE_ID`), not looked up on every search — matching the original
-requirement that store selection be settable via variables.
+`PAKNSAVE_STORE_ID`, `WOOLWORTHS_STORE_ID`), not looked up on every search —
+matching the original requirement that store selection be settable via
+variables.
 
 ## Next steps
 
-1. Implement the Woolworths NZ adapter. Start by probing
-   `https://www.woolworths.co.nz` traffic in a real browser's devtools
-   Network tab while browsing to a category with specials, to see whether
-   plain HTTP requests work or whether it needs Playwright.
-2. Consider basic response caching (a search term re-run within a few
+1. Consider basic response caching (a search term re-run within a few
    minutes shouldn't re-hit every site) and a rate limit / backoff, since
    these are unofficial endpoints on commercial retail sites — keep usage
    to personal, reasonable-volume lookups.
-3. If a live "N for $X" multi-buy special ever shows up, double-check the
-   `threshold > 1` assumption in `src/adapters/foodstuffs.ts` (see above).
+2. If a live "N for $X" multi-buy special ever shows up on Foodstuffs,
+   double-check the `threshold > 1` assumption in
+   `src/adapters/foodstuffs.ts` (see above).
 
 ## A note on legality/ToS
 
